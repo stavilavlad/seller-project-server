@@ -41,19 +41,26 @@ db.connect();
 
 app.get("/products", async (req, res) => {
   try {
-    const response = await db.query("SELECT * FROM products");
-    console.log(response.rows);
-    res.send(response.rows);
+    const response = await db.query("SELECT * FROM products ORDER BY id");
+
+    res.json({ products: response.rows, count: response.rowCount });
+  } catch (error) {}
+});
+
+app.get("/products/:id", async (req, res) => {
+  try {
+    const id = req.params.id;
+    const views = await db.query("UPDATE products SET views = (SELECT views FROM products WHERE id = $1) + 1 WHERE id = $2 RETURNING views", [id, id]);
+    const response = await db.query("SELECT * FROM products WHERE id = $1", [id]);
+    res.json({ product: response.rows[0], views: views.rows[0] });
   } catch (error) {}
 });
 
 app.post("/listing", upload.array("file", 4), async (req, res) => {
   try {
-    console.log(req.body);
-    console.log(req.files);
-    const { title, description, category, used } = req.body;
+    const { title, description, category, used, price, negociable } = req.body;
 
-    const response = await db.query("INSERT INTO products (title, description, category, new, images) VALUES ($1, $2, $3, $4, $5) RETURNING *", [title, description, category, used ? true : false, req.files.map((item) => item.filename)]);
+    const response = await db.query("INSERT INTO products (title, description, category, new, images, price, negociable) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *", [title, description, category, used ? true : false, req.files.map((item) => item.filename), price, negociable ? true : false]);
     res.send("Listing created succesfully");
   } catch (error) {
     console.error("Error while creating listing:", error);
