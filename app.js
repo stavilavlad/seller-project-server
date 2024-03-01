@@ -110,10 +110,22 @@ app.get("/products/:id", async (req, res) => {
   try {
     const id = req.params.id;
     const views = await db.query("UPDATE products SET views = (SELECT views FROM products WHERE id = $1) + 1 WHERE id = $2 RETURNING views", [id, id]);
-    const response = await db.query("SELECT title, description, new, category, images, date, price, negociable,user_id, username, registration_date FROM products JOIN users ON users.id = products.user_id WHERE products.id = $1", [id]);
+    const response = await db.query("SELECT products.id, title, description, new, category, images, date, price, negociable,user_id, username, registration_date FROM products JOIN users ON users.id = products.user_id WHERE products.id = $1", [id]);
     console.log(response.rows[0]);
     res.json({ product: response.rows[0], views: views.rows[0] });
   } catch (error) {}
+});
+
+app.delete("/products/:id", async (req, res) => {
+  const id = req.params.id;
+  console.log(req.params);
+  try {
+    await db.query("DELETE FROM products WHERE id = $1", [id]);
+    res.send("Listing deleted");
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("Listing could not be deleted try again...");
+  }
 });
 
 app.post("/listing", upload.array("file", 4), async (req, res) => {
