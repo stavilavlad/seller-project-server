@@ -11,7 +11,6 @@ import LocalStrategy from "passport-local";
 import jwt from "jsonwebtoken";
 import passportJWT from "passport-jwt";
 import dotenv from "dotenv";
-import { log } from "console";
 dotenv.config();
 
 const JWTStrategy = passportJWT.Strategy;
@@ -71,7 +70,6 @@ app.post("/register", async (req, res) => {
         } else {
           try {
             const result = await db.query("INSERT INTO users (username, password) VALUES ($1, $2) RETURNING *", [username, hash]);
-            console.log(result.rows[0]);
             res.send("Registered");
           } catch (error) {
             console.error("Registration error:", error);
@@ -117,7 +115,6 @@ app.get("/products/:id", async (req, res) => {
 
 app.delete("/products/:id", async (req, res) => {
   const id = req.params.id;
-  console.log(req.params);
   try {
     await db.query("DELETE FROM products WHERE id = $1", [id]);
     res.send("Listing deleted");
@@ -162,6 +159,20 @@ app.patch("/listing/:id", upload.array("file", 4), async (req, res) => {
   }
 });
 
+app.get("/mylistings", passport.authenticate("jwt", { session: false }), async (req, res) => {
+  if (!req.user) {
+    res.status(401).send("Unauthorized!");
+  }
+  const id = req.user.id;
+  try {
+    const response = await db.query("SELECT * FROM products WHERE user_id = $1 ORDER BY id", [id]);
+    res.json(response.rows);
+  } catch (error) {
+    console.error(error);
+    res.status(401).send("Unauthorized!");
+  }
+});
+
 passport.use(
   new LocalStrategy({ session: false }, async function verify(username, password, cb) {
     try {
@@ -197,7 +208,8 @@ passport.use(
     },
     async function (jwtPayload, cb) {
       try {
-        const user = await db.query("SELECT * FROM users WHERE id = $1", [jwtPayload.sub]);
+        const response = await db.query("SELECT * FROM users WHERE id = $1", [jwtPayload.sub]);
+        const user = response.rows[0];
         if (user) {
           return cb(null, user);
         } else {
