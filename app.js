@@ -111,7 +111,6 @@ app.get("/products/:id", async (req, res) => {
     const id = req.params.id;
     const views = await db.query("UPDATE products SET views = (SELECT views FROM products WHERE id = $1) + 1 WHERE id = $2 RETURNING views", [id, id]);
     const response = await db.query("SELECT products.id, title, description, new, category, images, date, price, negociable,user_id, username, registration_date FROM products JOIN users ON users.id = products.user_id WHERE products.id = $1", [id]);
-    console.log(response.rows[0]);
     res.json({ product: response.rows[0], views: views.rows[0] });
   } catch (error) {}
 });
@@ -131,12 +130,35 @@ app.delete("/products/:id", async (req, res) => {
 app.post("/listing", upload.array("file", 4), async (req, res) => {
   try {
     const { title, description, category, used, price, negociable, userId } = req.body;
-    console.log(req.body);
     await db.query("INSERT INTO products (title, description, category, new, images, price, negociable, user_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ", [title, description, category, used ? true : false, req.files.map((item) => item.filename), price, negociable ? true : false, userId]);
     res.send("Listing created succesfully");
   } catch (error) {
     console.error("Error while creating listing:", error);
     res.status(500).send("Internal Server Error");
+  }
+});
+
+app.get("/listing/:id", async (req, res) => {
+  const id = req.params.id;
+  try {
+    const response = await db.query("SELECT products.id, title, description, new, category, images, price, negociable,user_id FROM products JOIN users ON users.id = products.user_id WHERE products.id = $1", [id]);
+    res.json(response.rows[0]);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("Error");
+  }
+});
+
+app.patch("/listing/:id", upload.array("file", 4), async (req, res) => {
+  const id = req.params.id;
+  const { title, category, used, description, price, negociable } = req.body;
+  try {
+    const oldImages = await db.query("SELECT images FROM products WHERE id = $1", [id]);
+    await db.query("UPDATE products SET title = $1, category = $2, new = $3, description = $4, images = $5, price= $6, negociable = $7 WHERE id = $8", [title, category, used ? true : false, description, req.files.length > 0 ? req.files.map((item) => item.filename) : oldImages.rows[0].images, price, negociable ? true : false, id]);
+    res.send("succes");
+  } catch (error) {
+    console.error(error);
+    res.send("Error updating product");
   }
 });
 
