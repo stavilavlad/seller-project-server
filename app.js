@@ -11,6 +11,7 @@ import LocalStrategy from "passport-local";
 import jwt from "jsonwebtoken";
 import passportJWT from "passport-jwt";
 import dotenv from "dotenv";
+import fs from "fs";
 dotenv.config();
 
 const JWTStrategy = passportJWT.Strategy;
@@ -116,6 +117,13 @@ app.get("/products/:id", async (req, res) => {
 app.delete("/products/:id", async (req, res) => {
   const id = req.params.id;
   try {
+    const result = await db.query("SELECT images FROM products WHERE id = $1", [id]);
+    result.rows[0].images.forEach((image) => {
+      fs.unlink(`uploads\\${image}`, (err) => {
+        if (err) throw err;
+        console.log(`uploads/${image} was deleted`);
+      });
+    });
     await db.query("DELETE FROM products WHERE id = $1", [id]);
     res.send("Listing deleted");
   } catch (error) {
@@ -138,7 +146,7 @@ app.post("/listing", upload.array("file", 4), async (req, res) => {
 app.get("/listing/:id", async (req, res) => {
   const id = req.params.id;
   try {
-    const response = await db.query("SELECT products.id, title, description, new, category, images, price, negociable,user_id FROM products JOIN users ON users.id = products.user_id WHERE products.id = $1", [id]);
+    const response = await db.query("SELECT products.id, title, description, new, category, images, price, negociable,user_id, username FROM products JOIN users ON users.id = products.user_id WHERE products.id = $1", [id]);
     res.json(response.rows[0]);
   } catch (error) {
     console.error(error);
@@ -151,6 +159,15 @@ app.patch("/listing/:id", upload.array("file", 4), async (req, res) => {
   const { title, category, used, description, price, negociable } = req.body;
   try {
     const oldImages = await db.query("SELECT images FROM products WHERE id = $1", [id]);
+    console.log(req.files);
+    if (req.files.length > 0) {
+      oldImages.rows[0].images.forEach((image) => {
+        fs.unlink(`uploads\\${image}`, (err) => {
+          if (err) throw err;
+          console.log(`uploads/${image} was deleted`);
+        });
+      });
+    }
     await db.query("UPDATE products SET title = $1, category = $2, new = $3, description = $4, images = $5, price= $6, negociable = $7 WHERE id = $8", [title, category, used ? true : false, description, req.files.length > 0 ? req.files.map((item) => item.filename) : oldImages.rows[0].images, price, negociable ? true : false, id]);
     res.send("succes");
   } catch (error) {
@@ -170,6 +187,17 @@ app.get("/mylistings", passport.authenticate("jwt", { session: false }), async (
   } catch (error) {
     console.error(error);
     res.status(401).send("Unauthorized!");
+  }
+});
+
+app.get("/user/listings/:id", async (req, res) => {
+  const id = req.params.id;
+  try {
+    const response = await db.query("SELECT products.id, title, description, new, category, images, price, negociable,user_id, username FROM products JOIN users ON users.id = products.user_id WHERE user_id = $1", [id]);
+    res.send(response.rows);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("Error fetching products");
   }
 });
 
