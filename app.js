@@ -8,10 +8,12 @@ import { dirname, join } from "path";
 import bcrypt from "bcrypt";
 import passport from "passport";
 import LocalStrategy from "passport-local";
+import GoogleStrategy from "passport-google-oauth20";
 import jwt from "jsonwebtoken";
 import passportJWT from "passport-jwt";
 import dotenv from "dotenv";
 import fs from "fs";
+import { log } from "console";
 dotenv.config();
 
 const JWTStrategy = passportJWT.Strategy;
@@ -33,8 +35,15 @@ const db = new pg.Client({
 });
 
 // MIDDLEWARE
+app.use(
+  cors({
+    credentials: true,
+    origin: process.env.CLIENT_URL,
+    methods: "GET,PUT,PATCH,POST,DELETE",
+  })
+);
+
 app.use(express.json());
-app.use(cors());
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 app.use(passport.initialize());
@@ -57,12 +66,12 @@ db.connect();
 
 app.post("/register", async (req, res) => {
   try {
-    const { username, password } = req.body;
+    const { username, password, email } = req.body;
 
-    const checkUser = await db.query("SELECT * FROM users WHERE username = $1", [username]);
+    const checkUser = await db.query("SELECT * FROM users WHERE email = $1", [email]);
 
     if (checkUser.rows.length > 0) {
-      return res.status(400).send("Username already exists");
+      return res.status(400).send("Email already exists");
     } else {
       bcrypt.hash(password, saltRounds, async (err, hash) => {
         if (err) {
@@ -70,7 +79,7 @@ app.post("/register", async (req, res) => {
           return res.status(500).send("Error hashing password");
         } else {
           try {
-            const result = await db.query("INSERT INTO users (username, password) VALUES ($1, $2) RETURNING *", [username, hash]);
+            const result = await db.query("INSERT INTO users (username, password, email) VALUES ($1, $2, $3) RETURNING *", [username, hash, email]);
             res.send("Registered");
           } catch (error) {
             console.error("Registration error:", error);
@@ -98,6 +107,14 @@ app.post("/login", passport.authenticate("local", { session: false }), async (re
   }
 });
 
+app.get("/auth/google", passport.authenticate("google", { scope: ["profile", "email"] }));
+
+app.get("/auth/google/callback", passport.authenticate("google", { session: false }), (req, res) => {
+  const user = req.user.user;
+  const token = req.user.jwt;
+  res.redirect(`${process.env.CLIENT_URL}/?user=${JSON.stringify(user)}&token=${token}`);
+});
+
 app.get("/products", async (req, res) => {
   try {
     const response = await db.query("SELECT * FROM products ORDER BY id");
@@ -114,10 +131,18 @@ app.get("/products/:id", async (req, res) => {
   } catch (error) {}
 });
 
-app.delete("/products/:id", async (req, res) => {
+app.delete("/products/:id", passport.authenticate("jwt", { session: false }), async (req, res) => {
   const id = req.params.id;
+  const userId = req.user.id;
   try {
-    const result = await db.query("SELECT images FROM products WHERE id = $1", [id]);
+    const result = await db.query("SELECT images, user_id FROM products WHERE id = $1", [id]);
+    const productUserId = result.rows[0].user_id;
+
+    console.log(userId, productUserId);
+    if (userId !== productUserId) {
+      return res.status(403).send("Unauthorized");
+    }
+
     result.rows[0].images.forEach((image) => {
       fs.unlink(`uploads\\${image}`, (err) => {
         if (err) throw err;
@@ -131,8 +156,7 @@ app.delete("/products/:id", async (req, res) => {
     res.status(500).send("Listing could not be deleted try again...");
   }
 });
-
-app.post("/listing", upload.array("file", 4), async (req, res) => {
+app.post("/listing", upload.any(), async (req, res) => {
   try {
     const { title, description, category, used, price, negociable, userId } = req.body;
     await db.query("INSERT INTO products (title, description, category, new, images, price, negociable, user_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ", [title, description, category, used ? true : false, req.files.map((item) => item.filename), price, negociable ? true : false, userId]);
@@ -154,7 +178,7 @@ app.get("/listing/:id", async (req, res) => {
   }
 });
 
-app.patch("/listing/:id", upload.array("file", 4), async (req, res) => {
+app.patch("/listing/:id", upload.any(), async (req, res) => {
   const id = req.params.id;
   const { title, category, used, description, price, negociable } = req.body;
   try {
@@ -202,9 +226,11 @@ app.get("/user/listings/:id", async (req, res) => {
 });
 
 passport.use(
+  "local",
   new LocalStrategy({ session: false }, async function verify(username, password, cb) {
+    console.log(username, password);
     try {
-      const result = await db.query("SELECT * FROM users WHERE username = $1", [username]);
+      const result = await db.query("SELECT * FROM users WHERE email = $1", [username]);
 
       if (result.rows.length > 0) {
         const user = result.rows[0];
@@ -229,6 +255,7 @@ passport.use(
 );
 
 passport.use(
+  "jwt",
   new JWTStrategy(
     {
       jwtFromRequest: ExtractJWT.fromAuthHeaderAsBearerToken(),
@@ -245,6 +272,37 @@ passport.use(
         }
       } catch (error) {
         return cb(error, false);
+      }
+    }
+  )
+);
+
+passport.use(
+  "google",
+  new GoogleStrategy(
+    {
+      clientID: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      callbackURL: process.env.GOOGLE_CALLBACK_URL,
+      session: false,
+      scope: ["profile", "email"],
+    },
+    async function (accessToken, refreshToken, profile, cb) {
+      const user_profile = profile._json;
+      console.log(user_profile);
+      try {
+        const result = await db.query("SELECT * FROM users WHERE email = $1", [user_profile.email]);
+        if (result.rows.length == 0) {
+          const newUser = await db.query("INSERT INTO users (username, email, password) VALUES ($1,$2,$3) RETURNING *", [user_profile.given_name, user_profile.email, "google"]);
+          const jwtToken = jwt.sign({ sub: newUser.rows[0].id }, process.env.JWT_SECRET, { expiresIn: "1d" });
+          cb(null, { user: newUser.rows[0], jwt: jwtToken });
+        } else {
+          const jwtToken = jwt.sign({ sub: result.rows[0].id }, process.env.JWT_SECRET, { expiresIn: "1d" });
+
+          cb(null, { user: result.rows[0], jwt: jwtToken });
+        }
+      } catch (error) {
+        cb(error);
       }
     }
   )
