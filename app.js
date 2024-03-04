@@ -13,7 +13,6 @@ import jwt from "jsonwebtoken";
 import passportJWT from "passport-jwt";
 import dotenv from "dotenv";
 import fs from "fs";
-import { log } from "console";
 dotenv.config();
 
 const JWTStrategy = passportJWT.Strategy;
@@ -96,10 +95,10 @@ app.post("/register", async (req, res) => {
 
 app.post("/login", passport.authenticate("local", { session: false }), async (req, res) => {
   const user = req.user;
+  console.log(user);
 
   try {
     const token = jwt.sign({ sub: user.id }, process.env.JWT_SECRET, { expiresIn: "1d" });
-
     res.json({ id: user.id, username: user.username, createdAt: user.registration_date, token });
   } catch (error) {
     console.error("Error signing JWT:", error);
@@ -126,7 +125,7 @@ app.get("/products/:id", async (req, res) => {
   try {
     const id = req.params.id;
     const views = await db.query("UPDATE products SET views = (SELECT views FROM products WHERE id = $1) + 1 WHERE id = $2 RETURNING views", [id, id]);
-    const response = await db.query("SELECT products.id, title, description, new, category, images, date, price, negociable,user_id, username, registration_date FROM products JOIN users ON users.id = products.user_id WHERE products.id = $1", [id]);
+    const response = await db.query("SELECT products.id, title, description, new, category, images, date, price, negociable,user_id, username, registration_date, phone FROM products JOIN users ON users.id = products.user_id WHERE products.id = $1", [id]);
     res.json({ product: response.rows[0], views: views.rows[0] });
   } catch (error) {}
 });
@@ -158,8 +157,8 @@ app.delete("/products/:id", passport.authenticate("jwt", { session: false }), as
 });
 app.post("/listing", upload.any(), async (req, res) => {
   try {
-    const { title, description, category, used, price, negociable, userId } = req.body;
-    await db.query("INSERT INTO products (title, description, category, new, images, price, negociable, user_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ", [title, description, category, used ? true : false, req.files.map((item) => item.filename), price, negociable ? true : false, userId]);
+    const { title, description, category, used, price, negociable, userId, phone } = req.body;
+    await db.query("INSERT INTO products (title, description, category, new, images, price, negociable, user_id, phone) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) ", [title, description, category, used ? true : false, req.files.map((item) => item.filename), price, negociable ? true : false, userId, phone]);
     res.send("Listing created succesfully");
   } catch (error) {
     console.error("Error while creating listing:", error);
@@ -170,7 +169,7 @@ app.post("/listing", upload.any(), async (req, res) => {
 app.get("/listing/:id", async (req, res) => {
   const id = req.params.id;
   try {
-    const response = await db.query("SELECT products.id, title, description, new, category, images, price, negociable,user_id, username FROM products JOIN users ON users.id = products.user_id WHERE products.id = $1", [id]);
+    const response = await db.query("SELECT products.id, title, description, new, category, images, price, negociable,user_id, username, phone FROM products JOIN users ON users.id = products.user_id WHERE products.id = $1", [id]);
     res.json(response.rows[0]);
   } catch (error) {
     console.error(error);
@@ -180,7 +179,7 @@ app.get("/listing/:id", async (req, res) => {
 
 app.patch("/listing/:id", upload.any(), async (req, res) => {
   const id = req.params.id;
-  const { title, category, used, description, price, negociable } = req.body;
+  const { title, category, used, description, price, negociable, phone } = req.body;
   try {
     const oldImages = await db.query("SELECT images FROM products WHERE id = $1", [id]);
     console.log(req.files);
@@ -192,7 +191,7 @@ app.patch("/listing/:id", upload.any(), async (req, res) => {
         });
       });
     }
-    await db.query("UPDATE products SET title = $1, category = $2, new = $3, description = $4, images = $5, price= $6, negociable = $7 WHERE id = $8", [title, category, used ? true : false, description, req.files.length > 0 ? req.files.map((item) => item.filename) : oldImages.rows[0].images, price, negociable ? true : false, id]);
+    await db.query("UPDATE products SET title = $1, category = $2, new = $3, description = $4, images = $5, price = $6, negociable = $7, phone = $9 WHERE id = $8", [title, category, used ? true : false, description, req.files.length > 0 ? req.files.map((item) => item.filename) : oldImages.rows[0].images, price, negociable ? true : false, id, phone]);
     res.send("succes");
   } catch (error) {
     console.error(error);
@@ -225,10 +224,33 @@ app.get("/user/listings/:id", async (req, res) => {
   }
 });
 
+app.get("/user/profile/:id", async (req, res) => {
+  const id = req.params.id;
+  try {
+    const result = await db.query("SELECT * FROM users WHERE id = $1", [id]);
+    const resultProducts = await db.query("SELECT * FROM products WHERE user_id = $1", [id]);
+    res.json({ user: result.rows[0], itemCount: resultProducts.rowCount });
+  } catch (error) {
+    console.log(error);
+    res.status(500).send("Error fetching user");
+  }
+});
+
+app.post("/user/profile/:id", async (req, res) => {
+  try {
+    const id = req.params.id;
+    const username = req.body.username;
+    await db.query("UPDATE users SET username = $1 WHERE id = $2", [username, id]);
+    res.send("Updated");
+  } catch (error) {
+    console.log(error);
+    res.status(500).send("Couldn't update user");
+  }
+});
+
 passport.use(
   "local",
   new LocalStrategy({ session: false }, async function verify(username, password, cb) {
-    console.log(username, password);
     try {
       const result = await db.query("SELECT * FROM users WHERE email = $1", [username]);
 
