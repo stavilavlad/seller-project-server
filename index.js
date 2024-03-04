@@ -37,7 +37,7 @@ const db = new pg.Client({
 app.use(
   cors({
     credentials: true,
-    origin: process.env.CLIENT_URL,
+    origin: process.env.REACT_URL,
     methods: "GET,PUT,PATCH,POST,DELETE",
   })
 );
@@ -62,6 +62,10 @@ const upload = multer({ storage: storage });
 
 // connect to db
 db.connect();
+
+app.get("/", (req, res) => {
+  res.send("hello");
+});
 
 app.post("/register", async (req, res) => {
   try {
@@ -111,7 +115,7 @@ app.get("/auth/google", passport.authenticate("google", { scope: ["profile", "em
 app.get("/auth/google/callback", passport.authenticate("google", { session: false }), (req, res) => {
   const user = req.user.user;
   const token = req.user.jwt;
-  res.redirect(`${process.env.CLIENT_URL}/?user=${JSON.stringify(user)}&token=${token}`);
+  res.redirect(`${process.env.REACT_URL}/?user=${JSON.stringify(user)}&token=${token}`);
 });
 
 app.get("/products", async (req, res) => {
