@@ -37,7 +37,7 @@ const db = new pg.Client({
 app.use(
   cors({
     credentials: true,
-    origin: process.env.CLIENT_URL,
+    origin: "*",
     methods: "GET,PUT,PATCH,POST,DELETE",
   })
 );
