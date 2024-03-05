@@ -95,7 +95,6 @@ app.post("/register", async (req, res) => {
 
 app.post("/login", passport.authenticate("local", { session: false }), async (req, res) => {
   const user = req.user;
-  console.log(user);
 
   try {
     const token = jwt.sign({ sub: user.id }, process.env.JWT_SECRET, { expiresIn: "1d" });
@@ -137,7 +136,6 @@ app.delete("/products/:id", passport.authenticate("jwt", { session: false }), as
     const result = await db.query("SELECT images, user_id FROM products WHERE id = $1", [id]);
     const productUserId = result.rows[0].user_id;
 
-    console.log(userId, productUserId);
     if (userId !== productUserId) {
       return res.status(403).send("Unauthorized");
     }
@@ -182,7 +180,6 @@ app.patch("/listing/:id", upload.any(), async (req, res) => {
   const { title, category, used, description, price, negociable, phone } = req.body;
   try {
     const oldImages = await db.query("SELECT images FROM products WHERE id = $1", [id]);
-    console.log(req.files);
     if (req.files.length > 0) {
       oldImages.rows[0].images.forEach((image) => {
         fs.unlink(`uploads\\${image}`, (err) => {
@@ -311,7 +308,6 @@ passport.use(
     },
     async function (accessToken, refreshToken, profile, cb) {
       const user_profile = profile._json;
-      console.log(user_profile);
       try {
         const result = await db.query("SELECT * FROM users WHERE email = $1", [user_profile.email]);
         if (result.rows.length == 0) {
