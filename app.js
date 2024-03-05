@@ -113,6 +113,10 @@ app.get("/auth/google/callback", passport.authenticate("google", { session: fals
   res.redirect(`${process.env.CLIENT_URL}/?user=${JSON.stringify(user)}&token=${token}`);
 });
 
+app.get("/", (req, res) => {
+  res.send("hello");
+});
+
 app.get("/products", async (req, res) => {
   try {
     const response = await db.query("SELECT * FROM products ORDER BY id");
