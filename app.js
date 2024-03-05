@@ -133,7 +133,7 @@ app.get("/products/:id", async (req, res) => {
   } catch (error) {}
 });
 
-app.post("/products/:id", passport.authenticate("jwt", { session: false }), async (req, res) => {
+app.post("/products/:id", async (req, res) => {
   const id = req.params.id;
   // const userId = req.user.id;
   try {
