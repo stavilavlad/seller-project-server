@@ -133,23 +133,23 @@ app.get("/products/:id", async (req, res) => {
   } catch (error) {}
 });
 
-app.post("/products/:id", passport.authenticate("jwt", { session: false }), async (req, res) => {
+app.post("/products/:id", async (req, res) => {
   const id = req.params.id;
-  const userId = req.user.id;
+  // const userId = req.user.id;
   try {
-    const result = await db.query("SELECT images, user_id FROM products WHERE id = $1", [id]);
-    const productUserId = result.rows[0].user_id;
+    // const result = await db.query("SELECT images, user_id FROM products WHERE id = $1", [id]);
+    // const productUserId = result.rows[0].user_id;
 
     // if (userId !== productUserId) {
     //   return res.status(403).send("Unauthorized");
     // }
 
-    result.rows[0].images.forEach((image) => {
-      fs.unlink(`uploads\\${image}`, (err) => {
-        if (err) throw err;
-        console.log(`uploads/${image} was deleted`);
-      });
-    });
+    // result.rows[0].images.forEach((image) => {
+    //   fs.unlink(`uploads\\${image}`, (err) => {
+    //     if (err) throw err;
+    //     console.log(`uploads/${image} was deleted`);
+    //   });
+    // });
     await db.query("DELETE FROM products WHERE id = $1", [id]);
     res.send("Listing deleted");
   } catch (error) {
