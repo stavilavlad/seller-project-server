@@ -34,13 +34,13 @@ const db = new pg.Client({
 });
 
 // MIDDLEWARE
-app.use(
-  cors({
-    credentials: true,
-    origin: "*",
-    methods: "GET,PUT,PATCH,POST,DELETE",
-  })
-);
+app.use(cors());
+
+// {
+//   credentials: true,
+//   origin: process.env.CLIENT_URL,
+//   methods: "GET,PUT,PATCH,POST,DELETE",
+// }
 
 app.use(express.json());
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
