@@ -306,7 +306,7 @@ passport.use(
     {
       clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      callbackURL: process.env.GOOGLE_CALLBACK_URL,
+      callbackURL: "https://seller-project-server-1.onrender.com/auth/google/callback",
       session: false,
       scope: ["profile", "email"],
     },
