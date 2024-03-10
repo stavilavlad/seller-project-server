@@ -139,12 +139,12 @@ app.post("/products/:id", async (req, res) => {
     //   return res.status(403).send("Unauthorized");
     // }
 
-    // result.rows[0].images.forEach((image) => {
-    //   fs.unlink(`uploads\\${image}`, (err) => {
-    //     if (err) throw err;
-    //     console.log(`uploads/${image} was deleted`);
-    //   });
-    // });
+    result.rows[0].images.forEach((image) => {
+      fs.unlink(`/var/data/${image}`, (err) => {
+        if (err) throw err;
+        console.log(`uploads/${image} was deleted`);
+      });
+    });
     await db.query("DELETE FROM products WHERE id = $1", [id]);
     res.send("Listing deleted");
   } catch (error) {
