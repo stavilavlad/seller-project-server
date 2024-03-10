@@ -132,7 +132,7 @@ app.post("/products/:id", async (req, res) => {
   const id = req.params.id;
   // const userId = req.user.id;
   try {
-    // const result = await db.query("SELECT images, user_id FROM products WHERE id = $1", [id]);
+    const result = await db.query("SELECT images, user_id FROM products WHERE id = $1", [id]);
     // const productUserId = result.rows[0].user_id;
 
     // if (userId !== productUserId) {
