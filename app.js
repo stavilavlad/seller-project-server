@@ -139,7 +139,7 @@ app.post("/products/:id", async (req, res) => {
     //   return res.status(403).send("Unauthorized");
     // }
 
-    result.rows[0].images.forEach((image) => {
+    result.rows[0]?.images?.forEach((image) => {
       fs.unlink(`/var/data/${image}`, (err) => {
         if (err) throw err;
         console.log(`uploads/${image} was deleted`);
@@ -180,7 +180,7 @@ app.patch("/listing/:id", upload.any(), async (req, res) => {
   try {
     const oldImages = await db.query("SELECT images FROM products WHERE id = $1", [id]);
     if (req.files.length > 0) {
-      oldImages.rows[0].images.forEach((image) => {
+      oldImages?.rows[0]?.images?.forEach((image) => {
         fs.unlink(`/var/data/${image}`, (err) => {
           if (err) throw err;
           console.log(`uploads/${image} was deleted`);
