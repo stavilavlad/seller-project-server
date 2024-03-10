@@ -179,14 +179,14 @@ app.patch("/listing/:id", upload.any(), async (req, res) => {
   const { title, category, used, description, price, negociable, phone } = req.body;
   try {
     const oldImages = await db.query("SELECT images FROM products WHERE id = $1", [id]);
-    // if (req.files.length > 0) {
-    //   oldImages.rows[0].images.forEach((image) => {
-    //     fs.unlink(`uploads\\${image}`, (err) => {
-    //       if (err) throw err;
-    //       console.log(`uploads/${image} was deleted`);
-    //     });
-    //   });
-    // }
+    if (req.files.length > 0) {
+      oldImages.rows[0].images.forEach((image) => {
+        fs.unlink(`/var/data/${image}`, (err) => {
+          if (err) throw err;
+          console.log(`uploads/${image} was deleted`);
+        });
+      });
+    }
     await db.query("UPDATE products SET title = $1, category = $2, new = $3, description = $4, images = $5, price = $6, negociable = $7, phone = $9 WHERE id = $8", [title, category, used ? true : false, description, req.files.length > 0 ? req.files.map((item) => item.filename) : oldImages.rows[0].images, price, negociable ? true : false, id, phone]);
     res.send("succes");
   } catch (error) {
